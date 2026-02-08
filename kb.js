@@ -2,76 +2,58 @@
     'use strict';
 
     function init() {
-        // Запускаем проверку каждые 1.5 секунды
         setInterval(function() {
-            // 1. Находим все элементы, которые могут быть кнопками
-            var allElements = document.querySelectorAll('.selector, .full-start__button, .button');
+            // Используем стандартный селектор Lampa для кнопок
+            var buttons = document.querySelectorAll('.full-start__button');
             var watchBtn = null;
 
-            // 2. Ищем среди них ту, где написано "Смотреть"
-            for (var i = 0; i < allElements.length; i++) {
-                var el = allElements[i];
-                if (el.innerText && el.innerText.toLowerCase().indexOf('смотреть') !== -1) {
-                    watchBtn = el;
+            for (var i = 0; i < buttons.length; i++) {
+                if (buttons[i].innerText.toLowerCase().indexOf('смотреть') !== -1) {
+                    watchBtn = buttons[i];
                     break;
                 }
             }
 
-            // 3. Если кнопка "Смотреть" есть, а нашей кнопки рядом нет — добавляем
-            if (watchBtn && !watchBtn.parentElement.querySelector('.kb-fixed-btn')) {
+            if (watchBtn && !watchBtn.parentElement.querySelector('.kb-android')) {
                 var kbBtn = document.createElement('div');
-                
-                // Копируем внешний вид основной кнопки
-                kbBtn.className = watchBtn.className + ' kb-fixed-btn';
-                
-                // Стили
-                kbBtn.style.backgroundColor = '#e67e22';
-                kbBtn.style.color = '#fff';
+                // Добавляем класс selector, чтобы кнопка подсвечивалась пультом
+                kbBtn.className = 'full-start__button selector kb-android';
+                kbBtn.style.backgroundColor = '#d35400';
                 kbBtn.style.marginLeft = '10px';
-                kbBtn.style.display = 'inline-flex';
                 kbBtn.innerHTML = '<span>Kinobase</span>';
 
-                // Вставляем после кнопки "Смотреть"
                 watchBtn.parentNode.insertBefore(kbBtn, watchBtn.nextSibling);
 
-                // Логика нажатия
+                // Используем Lampa.Listener или прямой обработчик
                 kbBtn.onclick = function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    var active = Lampa.Activity.active();
-                    var card = active ? active.card : null;
-                    
-                    if (!card) {
-                        Lampa.Noty.show('Не удалось получить данные фильма');
-                        return;
-                    }
+                    var card = Lampa.Activity.active().card;
+                    if (!card) return;
 
                     var title = card.title || card.name;
-                    var cleanTitle = title.replace(/[:.,!?-]/g, " ").trim();
-                    var searchUrl = 'https://kinobase.org/search?query=' + encodeURIComponent(cleanTitle);
+                    var query = title.replace(/[:.,!?-]/g, " ").trim();
+                    var url = 'https://kinobase.org/search?query=' + encodeURIComponent(query);
 
-                    Lampa.Noty.show('Ищу фильм на Kinobase...');
-
-                    // Открываем поиск в новой вкладке — это 100% рабочий метод на ПК
-                    var newWindow = window.open(searchUrl, '_blank');
-                    
-                    if (newWindow) {
-                        newWindow.focus();
+                    // Специальный метод Lampa для открытия ссылок в Android
+                    if (window.Lampa && Lampa.Platform && Lampa.Platform.is('android')) {
+                        Lampa.Platform.openLink(url);
                     } else {
-                        Lampa.Noty.show('Браузер заблокировал окно. Разрешите всплывающие окна!');
+                        // Резервный метод
+                        window.location.href = url;
                     }
                 };
+                
+                // Чтобы кнопка работала с пульта, нужно обновить контроллер
+                if(window.Lampa && Lampa.Controller) Lampa.Controller.toggle('full');
             }
-        }, 1500);
+        }, 2000);
     }
 
-    // Безопасный запуск
-    if (window.appready) {
-        init();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type == 'ready') init();
-        });
+    // Ждем полной готовности приложения
+    if (window.appready) init();
+    else {
+        document.addEventListener('appready', init);
     }
 })();
