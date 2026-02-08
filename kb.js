@@ -4,44 +4,48 @@
     function init() {
         setInterval(function() {
             var watchBtn = document.querySelector('.full-start__button.selector');
-            if (watchBtn && !watchBtn.parentElement.querySelector('.kb-list-btn')) {
+            if (watchBtn && !watchBtn.parentElement.querySelector('.kb-search-inside')) {
                 var btn = document.createElement('div');
-                btn.className = 'full-start__button selector kb-list-btn';
+                btn.className = 'full-start__button selector kb-search-inside';
                 btn.style.backgroundColor = '#d35400';
-                btn.innerHTML = '<span>Выбор на Kinobase</span>';
+                btn.style.marginLeft = '10px';
+                btn.innerHTML = '<span>Поиск на Kinobase</span>';
                 watchBtn.parentNode.insertBefore(btn, watchBtn.nextSibling);
 
                 btn.onclick = function() {
                     var card = Lampa.Activity.active().card;
-                    searchInside(card);
+                    runInternalSearch(card);
                 };
             }
         }, 2000);
     }
 
-    function searchInside(card) {
+    function runInternalSearch(card) {
         var title = (card.title || card.name).replace(/[:.,!?-]/g, " ").trim();
-        var url = 'https://kinobase.org/search?query=' + encodeURIComponent(title);
         var proxy = 'https://cors-anywhere.herokuapp.com/';
+        var searchUrl = proxy + 'https://kinobase.org/search?query=' + encodeURIComponent(title);
 
-        Lampa.Noty.show('Поиск вариантов...');
+        Lampa.Noty.show('Ищу результаты...');
 
-        fetch(proxy + url)
+        fetch(searchUrl)
             .then(r => r.text())
             .then(html => {
                 var parser = new DOMParser();
                 var doc = parser.parseFromString(html, 'text/html');
-                // Ищем все блоки с фильмами в выдаче Kinobase
-                var items = doc.querySelectorAll('.v-card-list__item, .item');
+                var items = doc.querySelectorAll('.v-card-list__item'); // Селектор карточек на Kinobase
+                
                 var results = [];
 
                 items.forEach(function(item) {
                     var link = item.querySelector('a');
-                    var name = item.querySelector('.v-card-list__title, .title, h4');
+                    var img = item.querySelector('img');
+                    var name = item.querySelector('.v-card-list__title, .title');
+
                     if (link && name) {
                         results.push({
                             title: name.innerText.trim(),
-                            url: 'https://kinobase.org' + link.getAttribute('href')
+                            url: 'https://kinobase.org' + link.getAttribute('href'),
+                            img: img ? img.getAttribute('src') : ''
                         });
                     }
                 });
@@ -52,45 +56,26 @@
                     Lampa.Noty.show('Ничего не найдено');
                 }
             })
-            .catch(() => Lampa.Noty.show('Ошибка доступа (проверьте прокси)'));
+            .catch(function() {
+                Lampa.Noty.show('Ошибка доступа (проверьте прокси)');
+            });
     }
 
-    function showResultsMenu(results, card) {
-        // Создаем встроенный список Lampa
+    function showResultsMenu(results, originalCard) {
+        // Создаем список для выбора
         Lampa.Select.show({
             title: 'Результаты Kinobase',
             items: results,
             onSelect: function(item) {
-                Lampa.Noty.show('Загрузка: ' + item.title);
-                // Здесь вызываем функцию запуска видео из предыдущих шагов
-                extractVideoDirect(item.url, item.title, card);
+                // При выборе открываем страницу или пытаемся играть
+                Lampa.Noty.show('Открываю: ' + item.title);
+                // Здесь можно либо вызвать переход по ссылке, либо запустить парсинг видео
+                window.open(item.url, '_blank'); 
             },
             onBack: function() {
                 Lampa.Controller.toggle('full');
             }
         });
-    }
-
-    function extractVideoDirect(url, title, card) {
-        var proxy = 'https://cors-anywhere.herokuapp.com/';
-        fetch(proxy + url)
-            .then(r => r.text())
-            .then(html => {
-                var fileMatch = html.match(/["']file["']\s*:\s*["']([^"']+)["']/);
-                var videoUrl = "";
-                if (fileMatch) {
-                    var data = fileMatch[1];
-                    videoUrl = data.includes('#mw') ? atob(data.split('#mw')[1]) : data;
-                    videoUrl = videoUrl.split(',')[0].replace(/\\\//g, '/');
-                }
-
-                if (videoUrl && videoUrl.startsWith('http')) {
-                    Lampa.Player.play({ url: videoUrl, title: title, movie: card });
-                    Lampa.Player.playlist([{ url: videoUrl, title: title }]);
-                } else {
-                    Lampa.Noty.show('Не удалось извлечь поток');
-                }
-            });
     }
 
     if (window.appready) init();
