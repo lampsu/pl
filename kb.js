@@ -1,49 +1,39 @@
 (function () {
     'use strict';
 
-    // Проверка загрузки (зеленое уведомление)
-    setTimeout(function() {
-        if (window.Lampa) Lampa.Noty.show('Kinobase 3.1.6: Подключено', {status: 'success'});
-    }, 1500);
+    function init() {
+        Lampa.Listener.follow('full', function (e) {
+            if (e.type == 'complite') {
+                // Ждем отрисовки кнопок в 3.1.6
+                setTimeout(function() {
+                    var container = e.container.find('.full-start__buttons');
+                    
+                    if (container.length && !container.find('.view--kinobase').length) {
+                        var btn = $('<div class="full-start__button selector view--kinobase" style="background: #e64a19 !important; color: #fff !important; margin-right: 10px; border-radius: 5px;"><span>Kinobase</span></div>');
+                        
+                        btn.on('hover:enter', function () {
+                            var movie = e.data.movie;
+                            var kp = movie.kinopoisk_id || '';
+                            var url = kp ? 'https://kinobase.org' + kp : 'https://kinobase.org' + encodeURIComponent(movie.title || movie.name);
+                            
+                            Lampa.Noty.show('Переход на Kinobase');
+                            window.open(url, '_blank');
+                        });
 
-    function inject() {
-        // Ищем контейнер кнопок (универсальный селектор для 3.1.6)
-        var container = $('.full-start__buttons, .full-buttons, .buttons--list');
-        
-        if (container.length && !container.find('.view--kinobase').length) {
-            var btn = $('<div class="full-start__button selector view--kinobase" style="background: #fb5121 !important; color: #fff !important; border-radius: 5px; margin-right: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 15px; height: 3.5em; cursor: pointer;"><span>Kinobase</span></div>');
-
-            btn.on('hover:enter click', function () {
-                var active = Lampa.Activity.active();
-                var movie = active.card || active.data.movie;
-                var kp = movie.kinopoisk_id || '';
-                var title = movie.title || movie.name;
-                var url = kp ? 'https://kinobase.org' + kp : 'https://kinobase.org' + encodeURIComponent(title);
-                
-                Lampa.Noty.show('Переход на Kinobase...');
-                window.open(url, '_blank');
-            });
-
-            // Вставляем первой
-            container.prepend(btn);
-            
-            // Регистрируем кнопку в контроллере фокуса
-            if (Lampa.Controller.enabled().name == 'full') {
-                Lampa.Controller.enable('full');
+                        container.prepend(btn);
+                        
+                        // Сообщаем Lampa, что кнопки обновились (для пульта)
+                        Lampa.Controller.enable('full');
+                    }
+                }, 400);
             }
-        }
+        });
     }
 
-    // Слушаем события Lampa
-    Lampa.Listener.follow('full', function (e) {
-        if (e.type == 'complite' || e.type == 'ready') {
-            setTimeout(inject, 300);
-        }
-    });
-
-    // Резервный таймер (если события блокируются)
-    setInterval(function() {
-        if (window.location.hash.indexOf('full') > -1) inject();
-    }, 1500);
-
+    // Безопасный запуск без Script Error
+    if (window.Lampa) {
+        init();
+    } else {
+        document.addEventListener('window:ready', init);
+    }
 })();
