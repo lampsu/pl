@@ -1,88 +1,62 @@
 (function () {
     'use strict';
 
-    function init() {
-        // Используем MutationObserver - это надежнее, чем setInterval
-        // Он следит за изменением DOM и срабатывает сразу, как появляется кнопка
-        var observer = new MutationObserver(function (mutations) {
-            var buttons = document.querySelectorAll('.selector, .button, .full-start__button');
-            
-            buttons.forEach(function (btn) {
-                // Ищем кнопку по тексту "Смотреть" и проверяем, не добавили ли мы уже свою кнопку
-                if (btn.innerText && btn.innerText.toLowerCase().indexOf('смотреть') !== -1 && 
-                    !btn.parentElement.querySelector('.kb-internal')) {
-                    
-                    createPluginButton(btn);
-                }
-            });
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
-    function createPluginButton(targetBtn) {
-        var kbBtn = document.createElement('div');
-        // Копируем классы оригинала, чтобы кнопка выглядела родной и работала с пульта
-        kbBtn.className = targetBtn.className + ' kb-internal';
+    function Kinobase(object) {
+        var network = new Lampa.RegExp();
+        var scroll = new Lampa.Scroll({mask: true, over: true});
+        var items = [];
+        var html = $('<div></div>');
         
-        // Стилизация
-        kbBtn.style.backgroundColor = '#d35400';
-        kbBtn.style.color = '#fff';
-        kbBtn.style.marginLeft = '10px';
-        kbBtn.style.padding = '0 20px';
-        kbBtn.style.display = 'inline-flex';
-        kbBtn.style.alignItems = 'center';
-        kbBtn.style.justifyContent = 'center';
-        kbBtn.style.cursor = 'pointer';
-        kbBtn.innerHTML = '<span>Kinobase</span>';
-
-        targetBtn.parentNode.insertBefore(kbBtn, targetBtn.nextSibling);
-
-        kbBtn.onclick = function (e) {
-            e.preventDefault();
-            e.stopPropagation();
+        // Основная функция поиска
+        this.search = function (data) {
+            // Kinobase обычно требует поиска по названию или ID
+            var url = 'https://kinobase.org' + encodeURIComponent(data.title);
             
-            var card = Lampa.Activity.active().card;
-            if (card) runInternalSearch(card);
-            else Lampa.Noty.show('Данные фильма не найдены');
+            network.silent(url, function (str) {
+                // Здесь должна быть логика парсинга HTML страницы Kinobase
+                // Извлекаем ссылки на плеер или видеофайлы
+                var result = parsePage(str); 
+                if (result) {
+                    this.build(result);
+                } else {
+                    Lampa.Noty.show('Контент на Kinobase не найден');
+                }
+            }.bind(this));
         };
+
+        this.create = function () {
+            // Инициализация интерфейса плагина внутри Lampa
+            return scroll.render();
+        };
+
+        // Вспомогательная функция парсинга (упрощенно)
+        function parsePage(html_str) {
+            // Тут должна быть регулярка или поиск по DOM для извлечения .mp4 или iframe
+            // ВАЖНО: Kinobase часто меняет селекторы, поэтому парсер нужно обновлять
+            return [{ title: 'Смотреть в 1080p', url: '...' }];
+        }
     }
 
-    function runInternalSearch(card) {
-        var title = (card.title || card.name).replace(/[:.,!?-]/g, " ").trim();
-        var proxy = 'https://cors-anywhere.herokuapp.com/';
-        var searchUrl = proxy + 'https://kinobase.org/search?query=' + encodeURIComponent(title);
-
-        Lampa.Noty.show('Поиск на Kinobase...');
-
-        fetch(searchUrl)
-            .then(r => r.text())
-            .then(html => {
-                var parser = new DOMParser();
-                var doc = parser.parseFromString(html, 'text/html');
-                var items = doc.querySelectorAll('.v-card-list__item'); 
-                
-                var results = [];
-                items.forEach(function(item) {
-                    var a = item.querySelector('a');
-                    var t = item.querySelector('.v-card-list__title, .title, h4');
-                    if (a && t) {
-                        results.push({
-                            title: t.innerText.trim(),
-                            url: 'https://kinobase.org' + a.getAttribute('href')
-                        });
-                    }
+    // Регистрация плагина в системе Lampa
+    function startPlugin() {
+        window.plugin_kinobase_ready = true;
+        Lampa.Component.add('kinobase', Kinobase); // Добавляем компонент
+        
+        // Добавляем кнопку в карточку фильма
+        Lampa.Listener.follow('full', function (e) {
+            if (e.type == 'complite') {
+                var btn = $('<div class="full-start__button button--secondary">Kinobase</div>');
+                btn.on('click', function () {
+                    Lampa.Component.item('kinobase', {
+                        title: e.data.movie.title,
+                        kp_id: e.data.movie.kinopoisk_id
+                    });
                 });
+                e.render.find('.full-start__buttons').append(btn);
+            }
+        });
+    }
 
-                if (results.length > 0) {
-                    Lampa.Select.show({
-                        title: 'Результаты для: ' + title,
-                        items: results,
-                        onSelect: function(item) {
-                            Lampa.Noty.show('Открываю страницу...');
-                            window.open(item.url, '_blank');
-                        },
-                        onBack
+    if (!window.plugin_kinobase_ready) startPlugin();
+
+})();
