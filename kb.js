@@ -1,55 +1,42 @@
 (function () {
     'use strict';
 
-    function init() {
-        // Уведомление для проверки загрузки
-        Lampa.Noty.show('Kinobase: Плагин активирован');
+    function addKinobase() {
+        // Проверяем, есть ли уже кнопка или контейнер
+        const container = document.querySelector('.full-start__buttons, .full-buttons');
+        if (container && !container.querySelector('.view--kinobase')) {
+            const btn = document.createElement('div');
+            btn.className = 'full-start__button selector view--kinobase';
+            btn.style.cssText = 'background: #ff5722 !important; color: #fff !important; margin-right: 10px; padding: 10px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center;';
+            btn.innerHTML = '<span>Kinobase</span>';
 
-        // Функция вставки кнопки
-        function inject() {
-            var container = $('.full-start__buttons, .full-buttons');
-            if (container.length && !container.find('.view--kinobase').length) {
-                var movie = Lampa.Activity.active().card;
-                if (!movie) return;
+            btn.addEventListener('click', () => {
+                const movie = Lampa.Activity.active().card;
+                const url = movie.kinopoisk_id 
+                    ? `https://kinobase.org{movie.kinopoisk_id}` 
+                    : `https://kinobase.org{encodeURIComponent(movie.title || movie.name)}`;
+                window.open(url, '_blank');
+            });
 
-                var btn = $(`
-                    <div class="full-start__button selector view--kinobase" style="background: #e64a19 !important; color: #fff !important; border-radius: 4px; margin-right: 10px; display: flex; align-items: center; padding: 0 15px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org" style="margin-right: 8px;">
-                            <path d="M10 16.5V7.5L16 12L10 16.5Z" fill="white"/>
-                            <circle cx="12" cy="12" r="9" stroke="white" stroke-width="2"/>
-                        </svg>
-                        <span>Kinobase</span>
-                    </div>
-                `);
+            // Для работы пульта (hover:enter в Lampa)
+            $(btn).on('hover:enter', () => {
+                btn.click();
+            });
 
-                btn.on('hover:enter', function () {
-                    var kp = movie.kinopoisk_id || '';
-                    var title = movie.title || movie.name;
-                    var url = kp ? 'https://kinobase.org' + kp : 'https://kinobase.org' + encodeURIComponent(title);
-                    
-                    Lampa.Noty.show('Переход на Kinobase...');
-                    window.open(url, '_blank');
-                });
-
-                container.prepend(btn);
-                Lampa.Controller.enable('full');
-            }
+            container.prepend(btn);
+            if (window.Lampa && Lampa.Controller) Lampa.Controller.enable('full');
         }
-
-        // Следим за изменениями на странице (самый надежный метод для браузера)
-        var observer = new MutationObserver(function() {
-            if (window.location.hash.indexOf('full') > -1) inject();
-        });
-
-        observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    // Запуск с проверкой готовности Lampa
-    if (window.Lampa) {
-        init();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type == 'ready') init();
-        });
-    }
+    // Запуск через MutationObserver (самый надежный метод 2026)
+    const observer = new MutationObserver(() => {
+        if (location.hash.includes('full')) {
+            setTimeout(addKinobase, 500);
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    console.log('Kinobase Plugin Loaded');
+    setTimeout(() => { if(window.Lampa) Lampa.Noty.show('Kinobase плагин активен'); }, 2000);
 })();
