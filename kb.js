@@ -2,50 +2,51 @@
     'use strict';
 
     function startPlugin() {
-        // Следим за открытием карточки фильма
+        // Подписываемся на событие отрисовки карточки
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
                 var container = e.container.find('.full-start__buttons');
                 
-                // Проверяем, не добавлена ли уже кнопка
-                if (container.find('.view--kinobase').length > 0) return;
+                // Если контейнер не найден (бывает в некоторых версиях), ищем альтернативный
+                if (!container.length) container = e.container.find('.full-buttons');
 
-                // Создаем кнопку
-                var btn = $(`
-                    <div class="full-start__button selector view--kinobase">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org" style="margin-right: 10px;">
-                            <path d="M10 16.5V7.5L16 12L10 16.5Z" fill="currentColor"/>
-                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
-                        </svg>
-                        <span>Kinobase</span>
-                    </div>
-                `);
+                if (container.length && !container.find('.view--kinobase').length) {
+                    var btn = $(`
+                        <div class="full-start__button selector view--kinobase">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org">
+                                <rect x="3" y="3" width="18" height="18" rx="2" stroke="white" stroke-width="2"/>
+                                <path d="M10 8L15 12L10 16V8Z" fill="white"/>
+                            </svg>
+                            <span>Kinobase</span>
+                        </div>
+                    `);
 
-                // Логика нажатия
-                btn.on('hover:enter', function () {
-                    var movie = e.data.movie;
-                    var query = encodeURIComponent(movie.title || movie.name);
-                    var kp_id = movie.kinopoisk_id || '';
-                    
-                    // Формируем ссылку (Kinobase обычно поддерживает поиск по KP ID в URL)
-                    var url = kp_id ? 'https://kinobase.org' + kp_id : 'https://kinobase.org' + query;
-                    
-                    Lampa.Noty.show('Переход на Kinobase...');
-                    
-                    // В Lampa для открытия внешних ссылок/плееров используем:
-                    window.open(url, '_blank');
-                });
+                    btn.on('hover:enter', function () {
+                        var movie = e.data.movie;
+                        var kp_id = movie.kinopoisk_id;
+                        var title = movie.title || movie.name;
 
-                // Добавляем в начало или после первой кнопки
-                container.append(btn);
-                
-                // Обновляем навигацию Lampa, чтобы кнопка стала кликабельной
-                Lampa.Controller.enable('full');
+                        if (kp_id) {
+                            // Самый надежный способ для Kinobase — переход по ID Кинопоиска
+                            window.open('https://kinobase.org' + kp_id, '_blank');
+                        } else {
+                            window.open('https://kinobase.org' + encodeURIComponent(title), '_blank');
+                        }
+                    });
+
+                    // Вставляем кнопку ПЕРЕД кнопкой "Трейлер" или в конец
+                    var trailer = container.find('.view--trailer');
+                    if (trailer.length) trailer.before(btn);
+                    else container.append(btn);
+                    
+                    // Форсируем обновление навигации, чтобы кнопка стала активной
+                    Lampa.Controller.enable('full');
+                }
             }
         });
     }
 
-    // Регистрация плагина в системе
+    // Запуск
     if (window.appready) startPlugin();
     else Lampa.Listener.follow('app', function (e) {
         if (e.type == 'ready') startPlugin();
