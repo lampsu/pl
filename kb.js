@@ -1,62 +1,55 @@
 (function () {
     'use strict';
 
-    function Kinobase(object) {
-        var network = new Lampa.RegExp();
-        var scroll = new Lampa.Scroll({mask: true, over: true});
-        var items = [];
-        var html = $('<div></div>');
-        
-        // Основная функция поиска
-        this.search = function (data) {
-            // Kinobase обычно требует поиска по названию или ID
-            var url = 'https://kinobase.org' + encodeURIComponent(data.title);
-            
-            network.silent(url, function (str) {
-                // Здесь должна быть логика парсинга HTML страницы Kinobase
-                // Извлекаем ссылки на плеер или видеофайлы
-                var result = parsePage(str); 
-                if (result) {
-                    this.build(result);
-                } else {
-                    Lampa.Noty.show('Контент на Kinobase не найден');
-                }
-            }.bind(this));
+    function Kinobase() {
+        // Логика открытия поиска Kinobase
+        this.open = function (data) {
+            Lampa.Noty.show('Поиск на Kinobase: ' + data.title);
+            // Здесь должна быть логика перехода к результатам
         };
-
-        this.create = function () {
-            // Инициализация интерфейса плагина внутри Lampa
-            return scroll.render();
-        };
-
-        // Вспомогательная функция парсинга (упрощенно)
-        function parsePage(html_str) {
-            // Тут должна быть регулярка или поиск по DOM для извлечения .mp4 или iframe
-            // ВАЖНО: Kinobase часто меняет селекторы, поэтому парсер нужно обновлять
-            return [{ title: 'Смотреть в 1080p', url: '...' }];
-        }
     }
 
-    // Регистрация плагина в системе Lampa
     function startPlugin() {
-        window.plugin_kinobase_ready = true;
-        Lampa.Component.add('kinobase', Kinobase); // Добавляем компонент
-        
-        // Добавляем кнопку в карточку фильма
+        // Регистрация компонента
+        Lampa.Component.add('kinobase', Kinobase);
+
+        // Слушатель открытия карточки фильма
         Lampa.Listener.follow('full', function (e) {
-            if (e.type == 'complite') {
-                var btn = $('<div class="full-start__button button--secondary">Kinobase</div>');
-                btn.on('click', function () {
-                    Lampa.Component.item('kinobase', {
-                        title: e.data.movie.title,
-                        kp_id: e.data.movie.kinopoisk_id
-                    });
-                });
-                e.render.find('.full-start__buttons').append(btn);
+            if (e.type === 'complite') { 
+                // Даем небольшую задержку, чтобы DOM успел отрисоваться
+                setTimeout(function() {
+                    renderButton(e);
+                }, 10);
             }
         });
     }
 
-    if (!window.plugin_kinobase_ready) startPlugin();
+    function renderButton(e) {
+        var container = e.render.find('.full-start__buttons');
+        
+        // Проверяем, не добавлена ли кнопка уже (чтобы избежать дублей)
+        if (container.find('.plugin--kinobase').length > 0) return;
 
+        var button = $(`<div class="full-start__button button--secondary plugin--kinobase">
+            <svg height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org"><path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/></svg>
+            <span>Kinobase</span>
+        </div>`);
+
+        button.on('hover:enter click', function () {
+            Lampa.Component.item('kinobase', {
+                title: e.data.movie.title || e.data.movie.name,
+                id: e.data.movie.id
+            });
+        });
+
+        container.append(button);
+    }
+
+    // Запуск при готовности Lampa
+    if (window.appready) startPlugin();
+    else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') startPlugin();
+        });
+    }
 })();
