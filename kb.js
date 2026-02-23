@@ -1,62 +1,66 @@
 (function () {
     'use strict';
 
-    // Подтверждение работы
-    Lampa.Noty.show('Kinobase: Плагин готов к работе', {status: 'success'});
+    // Уведомление о старте на 3.1.6
+    Lampa.Noty.show('Kinobase 3.1.6 активирован', {status: 'success'});
 
-    function injectButton() {
-        // Ищем все возможные варианты контейнеров кнопок в Lampa
-        var container = $('.full-start__buttons, .full-buttons, .buttons__list, [data-component="full_start_buttons"]');
+    function addKinobaseButton(e) {
+        // Пробуем найти контейнер в разных местах (зависит от версии интерфейса)
+        var container = e.container.find('.full-start__buttons, .full-buttons, .buttons--list, .full-start-buttons');
         
         if (container.length && !container.find('.view--kinobase').length) {
-            console.log('Kinobase: Контейнер найден, добавляю кнопку');
-            
             var btn = $(`
-                <div class="full-start__button selector view--kinobase" style="background: #e64a19 !important; color: #fff !important; display: flex; align-items: center; justify-content: center; border-radius: 4px; margin-right: 10px; cursor: pointer;">
+                <div class="full-start__button selector view--kinobase" style="background: #ff4500 !important; color: #fff !important; border-radius: 6px; margin-right: 12px; display: flex; align-items: center; justify-content: center; min-width: 140px;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org" style="margin-right: 8px;">
                         <path d="M10 16.5V7.5L16 12L10 16.5Z" fill="white"/>
                         <circle cx="12" cy="12" r="9" stroke="white" stroke-width="2"/>
                     </svg>
-                    <span>Kinobase</span>
+                    <span style="font-weight: bold; font-size: 1.1em;">Kinobase</span>
                 </div>
             `);
 
-            // Логика нажатия (совместимая с пультом и мышкой)
-            btn.on('hover:enter click', function (e) {
-                e.preventDefault();
-                var movie = Lampa.Activity.active().card;
-                if (!movie) return;
-
-                var kp_id = movie.kinopoisk_id;
+            btn.on('hover:enter click', function (event) {
+                event.stopPropagation();
+                var movie = e.data.movie;
+                var kp = movie.kinopoisk_id || '';
                 var title = movie.title || movie.name;
-                var url = kp_id ? 'https://kinobase.org' + kp_id : 'https://kinobase.org' + encodeURIComponent(title);
+                var url = kp ? 'https://kinobase.org' + kp : 'https://kinobase.org' + encodeURIComponent(title);
                 
-                Lampa.Noty.show('Переход на Kinobase...');
+                Lampa.Noty.show('Открываю Kinobase...');
                 window.open(url, '_blank');
             });
 
-            // Вставляем кнопку первой в список
+            // Вставляем В НАЧАЛО (перед кнопкой "Смотреть")
             container.prepend(btn);
             
-            // Важно: сообщаем Lampa, что в меню появились новые элементы для фокуса
-            Lampa.Controller.enable('full');
+            // Важно для 3.1.6: обновляем навигацию, чтобы кнопка получила фокус пульта
+            if (Lampa.Controller.enabled().name == 'full') {
+                Lampa.Controller.enable('full');
+            }
         }
     }
 
-    // Слушаем стандартное событие Lampa при открытии карточки
+    // Слушатель событий карточки
     Lampa.Listener.follow('full', function (e) {
-        if (e.type == 'complite') {
-            setTimeout(injectButton, 200); // Небольшая задержка для рендеринга
+        if (e.type == 'complite' || e.type == 'ready') {
+            // Повторяем поиск трижды с задержкой (для слабых устройств)
+            setTimeout(function() { addKinobaseButton(e); }, 100);
+            setTimeout(function() { addKinobaseButton(e); }, 500);
+            setTimeout(function() { addKinobaseButton(e); }, 1500);
         }
     });
 
-    // Дополнительная проверка через MutationObserver (если Listener не сработал)
-    var observer = new MutationObserver(function() {
-        if (window.location.hash.indexOf('full') > -1) {
-            injectButton();
+    // Резервный метод на случай, если Listener не перехватил отрисовку
+    setInterval(function() {
+        if (window.location.hash.includes('full')) {
+            var active = Lampa.Activity.active();
+            if (active && active.component == 'full' && active.content) {
+                addKinobaseButton({
+                    container: active.content,
+                    data: { movie: active.card }
+                });
+            }
         }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
+    }, 2000);
 
 })();
